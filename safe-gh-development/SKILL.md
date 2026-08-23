@@ -33,6 +33,17 @@ Before each write, still verify the target repository, branch, files, and comman
 
 Do not extend authorization to actions the user did not request. In particular, never merge, approve, enable auto-merge, force-push, delete, reset, clean, change permissions, or alter repository settings.
 
+### GitHub API and network failures
+
+When a GitHub CLI or remote Git command fails with a network, sandbox, DNS,
+connection, or API-availability error, retry the same read or explicitly
+authorized write command with network-enabled/elevated execution before
+reporting the operation as blocked. Ask the host for internet access using
+the command's escalation mechanism; do not silently substitute a local-only
+result. For an authentication or permission error, inspect `gh auth status`
+and report the required re-authentication or access change instead of treating
+it as a network failure. Never expose tokens or credential values in output.
+
 ### Mode A: Change to PR
 
 1. Inspect repository instructions, status, current branch, remotes, and relevant history.
