@@ -1,6 +1,6 @@
 ---
 name: janitor-security
-description: "Heuristic security scan of installed skills — prompt-injection phrases, hidden unicode instructions, credential-store access, network-pipe-to-shell and payload-smuggling patterns. Use when the user asks 'are my skills safe', wants to scan skills for prompt injection or malware patterns, or before trusting a newly installed skill. Trigger with '/janitor-security'."
+description: "Portable, read-only heuristic security scan of installed agent skills for prompt-injection phrases, hidden Unicode instructions, credential access, network-to-shell behavior, and payload smuggling. Use when checking skills before trusting or publishing them."
 allowed-tools: Read, Bash(bash:*)
 license: MIT
 metadata:
@@ -28,8 +28,8 @@ Findings are heuristics, not proof: a RISK verdict means "read this before trust
 
 ## Prerequisites
 
-- Python 3 and Bash.
-- The bundled `scripts/security.sh` entrypoint.
+- Python 3. Bash is optional; `scripts/security.sh` is a convenience entrypoint
+  for Unix-like hosts.
 - No plugin installation, authentication, or network access is required.
 
 ## Instructions
@@ -37,14 +37,23 @@ Findings are heuristics, not proof: a RISK verdict means "read this before trust
 ### Step 1: Run the scan
 
 ```bash
-scripts/security.sh                         # detect and scan local skill roots
+scripts/security.sh                         # Unix-like hosts
 scripts/security.sh --json                  # machine-readable report
 scripts/security.sh --path ~/some/skill-dir # scan one skill or skills root
 ```
 
-The scanner detects Codex, Agents, and Claude skill roots when they exist. Use
-`--path` when the host stores skills somewhere else. The scan is read-only and
-does not delete, modify, install, or publish anything.
+On hosts without Bash, run the portable implementation directly:
+
+```bash
+python3 scripts/security_scan.py
+python3 scripts/security_scan.py --path path/to/skills --json
+```
+
+The scanner detects common Codex, Agents, Antigravity, and Claude roots when
+they exist. It also checks project-local `.codex/skills`, `.agents/skills`, and
+`.claude/skills` directories. Use `--path` for any host-specific location or
+set `AGENT_SKILLS_DIRS` to a path-separated list of skill roots. The scan is
+read-only and does not delete, modify, install, or publish anything.
 
 ### Step 2: Present verdicts honestly
 

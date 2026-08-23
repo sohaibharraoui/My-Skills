@@ -30,11 +30,16 @@ BASE64_TOKEN = re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{240,}={0,2}(?![A-Za-
 
 def default_roots() -> list[Path]:
     roots: list[Path] = []
-    for raw in (os.environ.get("CODEX_HOME"), os.environ.get("AGENTS_HOME")):
+    configured = os.environ.get("AGENT_SKILLS_DIRS")
+    if configured:
+        roots.extend(Path(raw).expanduser() for raw in configured.split(os.pathsep) if raw)
+    for raw in (os.environ.get("CODEX_HOME"), os.environ.get("AGENTS_HOME"), os.environ.get("ANTIGRAVITY_HOME"), os.environ.get("CLAUDE_HOME")):
         if raw:
             roots.append(Path(raw).expanduser() / "skills")
     home = Path.home()
     roots.extend([home / ".codex" / "skills", home / ".agents" / "skills", home / ".claude" / "skills"])
+    project = Path.cwd()
+    roots.extend([project / ".codex" / "skills", project / ".agents" / "skills", project / ".claude" / "skills"])
     unique: list[Path] = []
     for root in roots:
         root = root.resolve()
