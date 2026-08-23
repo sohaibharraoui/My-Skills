@@ -6,7 +6,7 @@ license: MIT
 metadata:
   version: "1.6.0"
   author: "Krzysztof Hendzel <krzysztoff.hendzel@gmail.com>"
-  compatibility: "Reads local skill files only; no network access."
+  compatibility: "Requires Python 3 and Bash; reads local skill files only; no network access."
   argument-hint: "[--path <dir>] [--json]"
   tags: "skills, security, prompt-injection, audit, maintenance"
 ---
@@ -28,18 +28,23 @@ Findings are heuristics, not proof: a RISK verdict means "read this before trust
 
 ## Prerequisites
 
-- Claude Code with the skills-janitor plugin installed (provides `scripts/security.sh`)
-- bash 3.2+ (the stock macOS bash works; no external dependencies, no network access)
+- Python 3 and Bash.
+- The bundled `scripts/security.sh` entrypoint.
+- No plugin installation, authentication, or network access is required.
 
 ## Instructions
 
 ### Step 1: Run the scan
 
 ```bash
-bash ~/.claude/skills/skills-janitor/scripts/security.sh           # all installed skills
-bash ~/.claude/skills/skills-janitor/scripts/security.sh --json    # machine-readable
-bash ~/.claude/skills/skills-janitor/scripts/security.sh --path ~/some/skill-dir   # one directory
+scripts/security.sh                         # detect and scan local skill roots
+scripts/security.sh --json                  # machine-readable report
+scripts/security.sh --path ~/some/skill-dir # scan one skill or skills root
 ```
+
+The scanner detects Codex, Agents, and Claude skill roots when they exist. Use
+`--path` when the host stores skills somewhere else. The scan is read-only and
+does not delete, modify, install, or publish anything.
 
 ### Step 2: Present verdicts honestly
 
@@ -82,7 +87,6 @@ Summary line (`Scanned: N | RISK: x | REVIEW: y | PASS: z`) followed by flagged 
 
 ## Resources
 
-- Scan engine (plugin-relative): `{baseDir}/../../scripts/security.sh`
-- `/janitor-discover <url>` — pre-install check (overlap + this security scan on the fetched SKILL.md)
-- `/janitor-report` — general health check (errors, duplicates, broken skills)
-- `/janitor-swipe` — delete what you don't trust
+- Bundled scanner: `scripts/security.sh`
+- Python implementation: `scripts/security_scan.py`
+- Use `--path` to scan a downloaded candidate before installing it.
