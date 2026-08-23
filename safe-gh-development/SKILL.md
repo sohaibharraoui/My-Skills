@@ -73,14 +73,15 @@ Branch names should describe the work, not the agent. Never prefix or suffix a b
 2. Confirm the target base branch and whether the branch is already pushed.
 3. Never push with `--force`.
 4. Run the push command when the user explicitly requested pushing; otherwise stop with the prepared command.
-5. Draft the PR description.
-6. Run `gh pr create` or `gh pr edit` when the user explicitly requested PR creation or editing; otherwise stop with the prepared title, base, head, and body.
+5. Draft the PR title and description.
+6. Ensure the PR title begins with exactly one required prefix: `fix:`, `feature:`, or `documentation:`. Choose `fix:` for bug or behavior corrections, `feature:` for new functionality, and `documentation:` for documentation-only changes.
+7. Run `gh pr create` or `gh pr edit` when the user explicitly requested PR creation or editing; otherwise stop with the prepared title, base, head, and body.
 
 ### Mode D: PR description only
 
 1. Read the existing PR and diff using read-only commands.
 2. Read the issue or task when available.
-3. Draft only the title and description.
+3. Draft only the title and description. The title must begin with exactly one of `fix:`, `feature:`, or `documentation:`.
 4. Do not create branches, edit code, commit, push, create another PR, merge, or post automatically.
 5. Update the remote PR description only when the user explicitly requested the update; otherwise return the draft without changing GitHub.
 
@@ -103,6 +104,17 @@ Update files
 Before committing, report the proposed title, included files, excluded files, checks run, and exact command. Never add collaborator or agent attribution.
 
 ## PR description format
+
+PR titles must begin with exactly one of these prefixes:
+
+```text
+fix: <short description>
+feature: <short description>
+documentation: <short description>
+```
+
+Use lowercase prefixes and place the prefix at the very beginning of the
+title. Do not add other prefixes such as `chore:`, `refactor:`, or `docs:`.
 
 Use only these sections unless the repository's existing template requires additional fields:
 

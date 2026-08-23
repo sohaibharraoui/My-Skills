@@ -1,12 +1,12 @@
 ---
 name: janitor-security
-description: "Heuristic security scan of installed skills — prompt-injection phrases, hidden unicode instructions, credential-store access, network-pipe-to-shell and payload-smuggling patterns. Use when the user asks 'are my skills safe', wants to scan skills for prompt injection or malware patterns, or before trusting a newly installed skill. Trigger with '/janitor-security'."
+description: "Portable, read-only heuristic security scan of installed agent skills for prompt-injection phrases, hidden Unicode instructions, credential access, network-to-shell behavior, and payload smuggling. Use when checking skills before trusting or publishing them."
 allowed-tools: Read, Bash(bash:*)
 license: MIT
 metadata:
   version: "1.6.0"
   author: "Krzysztof Hendzel <krzysztoff.hendzel@gmail.com>"
-  compatibility: "Reads local skill files only; no network access."
+  compatibility: "Requires Python 3 and Bash; reads local skill files only; no network access."
   argument-hint: "[--path <dir>] [--json]"
   tags: "skills, security, prompt-injection, audit, maintenance"
 ---
@@ -28,18 +28,32 @@ Findings are heuristics, not proof: a RISK verdict means "read this before trust
 
 ## Prerequisites
 
-- Claude Code with the skills-janitor plugin installed (provides `scripts/security.sh`)
-- bash 3.2+ (the stock macOS bash works; no external dependencies, no network access)
+- Python 3. Bash is optional; `scripts/security.sh` is a convenience entrypoint
+  for Unix-like hosts.
+- No plugin installation, authentication, or network access is required.
 
 ## Instructions
 
 ### Step 1: Run the scan
 
 ```bash
-bash ~/.claude/skills/skills-janitor/scripts/security.sh           # all installed skills
-bash ~/.claude/skills/skills-janitor/scripts/security.sh --json    # machine-readable
-bash ~/.claude/skills/skills-janitor/scripts/security.sh --path ~/some/skill-dir   # one directory
+scripts/security.sh                         # Unix-like hosts
+scripts/security.sh --json                  # machine-readable report
+scripts/security.sh --path ~/some/skill-dir # scan one skill or skills root
 ```
+
+On hosts without Bash, run the portable implementation directly:
+
+```bash
+python3 scripts/security_scan.py
+python3 scripts/security_scan.py --path path/to/skills --json
+```
+
+The scanner detects common Codex, Agents, Antigravity, and Claude roots when
+they exist. It also checks project-local `.codex/skills`, `.agents/skills`, and
+`.claude/skills` directories. Use `--path` for any host-specific location or
+set `AGENT_SKILLS_DIRS` to a path-separated list of skill roots. The scan is
+read-only and does not delete, modify, install, or publish anything.
 
 ### Step 2: Present verdicts honestly
 
@@ -82,7 +96,6 @@ Summary line (`Scanned: N | RISK: x | REVIEW: y | PASS: z`) followed by flagged 
 
 ## Resources
 
-- Scan engine (plugin-relative): `{baseDir}/../../scripts/security.sh`
-- `/janitor-discover <url>` — pre-install check (overlap + this security scan on the fetched SKILL.md)
-- `/janitor-report` — general health check (errors, duplicates, broken skills)
-- `/janitor-swipe` — delete what you don't trust
+- Bundled scanner: `scripts/security.sh`
+- Python implementation: `scripts/security_scan.py`
+- Use `--path` to scan a downloaded candidate before installing it.
