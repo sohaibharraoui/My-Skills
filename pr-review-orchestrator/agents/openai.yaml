@@ -1,0 +1,4 @@
+interface:
+  display_name: "PR Review Orchestrator"
+  short_description: "Run adaptive read-only expert reviews"
+  default_prompt: "Use $pr-review-orchestrator to perform a read-only, evidence-based review of this pull request."

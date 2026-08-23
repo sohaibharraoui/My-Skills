@@ -1,0 +1,4 @@
+interface:
+  display_name: "PR Context and CI"
+  short_description: "Inspect PRs and diagnose CI failures"
+  default_prompt: "Use $pr-context-and-ci to inspect this PR, diagnose CI failures, and triage review comments."
