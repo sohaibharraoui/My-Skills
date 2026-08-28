@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Agent"
+  short_description: "Find evidence-backed PR defects"
+  default_prompt: "Use $review-agent to perform a read-only, evidence-based review of this pull request."

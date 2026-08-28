@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ostorlab Pre-Review"
+  short_description: "Evidence-based local diff review"
+  default_prompt: "Review the current diff using the Ostorlab evidence-based review workflow."

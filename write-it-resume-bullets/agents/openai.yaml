@@ -1,0 +1,4 @@
+interface:
+  display_name: "IT Resume Bullet Writer"
+  short_description: "Write high-impact tech resume bullet points using the Google XYZ formula"
+  default_prompt: "Use $write-it-resume-bullets to write or refine resume bullet points for this experience."
