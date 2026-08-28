@@ -1,0 +1,4 @@
+interface:
+  display_name: "GCP JSON Log Converter"
+  short_description: "Convert GCP JSON exports into readable logs"
+  default_prompt: "Use $gcp-json-log-converter to convert this GCP JSON log export into a readable console-style log."
