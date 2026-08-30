@@ -1,9 +1,9 @@
 ---
-name: gcloud-scan-log-investigation
+name: gcloud-log-explorer
 description: Investigate Google Cloud scan logs for a universe ID, including logs from multiple agents, and export the matching entries as JSON to the current workspace. Use when a user requests scan-log investigation, a universe-ID log pull, or a Logs Explorer query.
 ---
 
-# GCloud Scan Log Investigation
+# GCloud Log Explorer
 
 Use this skill to investigate scan runs by universe ID. The usual result is a
 complete, read-only JSON export in the workspace from which the task is being
