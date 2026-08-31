@@ -1,0 +1,4 @@
+interface:
+  display_name: "GCP Log Export"
+  short_description: "Export complete Cloud Logging results to JSON"
+  default_prompt: "Use $gcp-log-export to retrieve these Logs Explorer results into a JSON file."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Security Finding Triage"
+  short_description: "Rank findings by validity and validation value"
+  default_prompt: "Use $triage-security-findings to review this list of security findings and tell me which one to validate first."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Support Email Writer"
+  short_description: "Draft polished support email replies."
+  default_prompt: "Use $support-email-writer to write a professional support email response for this customer request."
