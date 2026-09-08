@@ -1,4 +1,0 @@
-interface:
-  display_name: "Safe GitHub Development"
-  short_description: "Safely create commits and pull requests"
-  default_prompt: "Use $safe-gh-development to prepare this change and create a safe pull request."
