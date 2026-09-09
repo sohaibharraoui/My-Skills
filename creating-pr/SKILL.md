@@ -55,9 +55,17 @@ Do not use `feat(...)`, `chore:`, `refactor:`, or `docs:`. Place the prefix at t
 
 ---
 
-## 📝 Standard PR Description Template
+## 📝 Standard PR Description Template (Safe GitHub Development Standard)
 
-Every Pull Request description MUST adhere to this clean structure:
+Pull Request titles must begin with exactly one required prefix:
+```text
+fix: <short description>
+feature: <short description>
+documentation: <short description>
+```
+Use lowercase prefixes and place the prefix at the very beginning of the title. Do not add other prefixes such as `chore:`, `refactor:`, or `docs:`.
+
+Every Pull Request description MUST strictly adhere to the clean 3-section format from `safe-gh-development`. Do NOT generate a `## Summary` section or architecture diagrams (no ASCII, Unicode box art, or Mermaid diagrams):
 
 ```markdown
 ## Problem
@@ -68,24 +76,14 @@ Every Pull Request description MUST adhere to this clean structure:
 
 - How the change solves the problem.
 
-## Architecture (Optional — for complex PRs)
-
-> Include for complex PRs involving architectural refactors, state transitions, or multi-component data flows. For straightforward or focused changes, omit this section.
-
-```text
-(ASCII / Unicode box art diagram illustrating flow or component interactions)
-```
-
-```mermaid
-(Mermaid flowchart or sequence diagram)
-```
-
 ## Changes
 
 - Important change one.
 - Important change two.
-- Tests or verification summary.
+- Tests or verification, when useful.
 ```
+
+Prefer short bullet points and simple language. Do not invent tests, requirements, or behavior.
 
 ---
 
@@ -188,7 +186,7 @@ git push -u origin "$BRANCH"
 > [!CAUTION]
 > **Only Proceed If Explicitly Requested**: NEVER execute this step unless the user explicitly instructed you to create or open a pull request. If the user only asked to implement code, fix a bug, or prepare a branch, STOP after tests and pushing. Wait for explicit instructions before opening a PR.
 
-Use the standard PR description structure (include `## Architecture` if the PR is complex):
+Use the clean 3-section PR description structure from `safe-gh-development`:
 ```bash
 BRANCH=$(git branch --show-current)
 BASE_BRANCH="main"
@@ -196,25 +194,17 @@ BASE_BRANCH="main"
 cat << 'EOF' > /tmp/pr_body.md
 ## Problem
 
-- <Problem description>
+- <What was wrong or needed.>
 
 ## Solution
 
-- <Solution description>
-
-## Architecture (Optional - include for complex PRs)
-
-```text
-<ASCII diagram>
-```
-
-```mermaid
-<Mermaid diagram>
-```
+- <How the change solves the problem.>
 
 ## Changes
 
-- <Change items>
+- <Important change one.>
+- <Important change two.>
+- <Tests or verification summary, when useful.>
 EOF
 
 gh pr create \
