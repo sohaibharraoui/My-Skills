@@ -1,11 +1,11 @@
 ---
 name: creating-pr
-description: Comprehensive Pull Request lifecycle skill. Use when creating a new PR, inspecting an existing PR, diagnosing CI failures, addressing review feedback, replying directly to individual comment threads, resetting review labels, and pushing updates.
+description: Mandatory Pull Request lifecycle skill. MUST BE USED for ANY action on a PR: creating a new PR, inspecting PR comments, addressing review feedback, pushing commits to a PR branch, replying directly to individual comment threads (both valid and invalid), scheduling recurring 1.10h comment rechecks, diagnosing CI failures, resetting review labels, or modifying PR title/description.
 ---
 
 # Pull Request Lifecycle Runbook (`creating-pr`)
 
-Comprehensive standard operating procedure for the entire GitHub Pull Request lifecycle: safe git/CLI authoring boundaries, opening PRs, inspecting existing PRs, diagnosing CI checks, addressing review comments, replying directly to specific comment threads, and managing review state labels.
+Comprehensive standard operating procedure for the entire GitHub Pull Request lifecycle: safe git/CLI authoring boundaries, opening PRs, scheduling recurring 1.10h comment rechecks, inspecting existing PRs, diagnosing CI checks, addressing review comments, replying directly to specific comment threads (both valid and invalid), pushing empty commits to trigger bot review, and managing review state labels.
 
 ---
 
@@ -24,8 +24,14 @@ Comprehensive standard operating procedure for the entire GitHub Pull Request li
 > 6. **Strict Attribution Bans**: Never add collaborators, co-authors, attribution trailers, or agent attribution to commit messages or PR titles. Do not add `Co-authored-by:`, `Co-Authored-By:`, `Generated-by:`, or `Reviewed-by:` trailers. Never include agent, model, or host identities in branch names, commit titles, or PR titles.
 > 7. **Automatic Bot Review Polling**: The bot review system (`pr-reviewer-discovery`) polls open PRs every minute. Pushing commits or setting `pr-review-pending` automatically schedules an evaluation.
 > 8. **No Big Summary Comments on the PR**: Never dump a massive review summary comment or wall of text at the bottom of the PR discussion tab (`gh pr comment --body ...`).
-> 9. **Reply Directly to Valid Comment Threads**: When review comments are addressed, reply directly to each individual comment thread explaining the specific fix.
+> 9. **Mandatory Replies to ALL Comment Threads (Valid & Invalid)**: Never finish a task or exit after `git push` without replying directly to every single unreplied comment thread:
+>    - **Valid Comments**: Implement code fix, test locally, commit, push, and reply to the thread with the commit SHA and explanation (`Fixed in commit <sha>: <concise description>`).
+>    - **Invalid Comments**: Reply directly to the thread with a clear, respectful technical justification explaining why the comment is invalid, out of scope, or why the current implementation is intended.
+>    - **Zero Ignored Comments**: Every comment thread MUST receive a reply. Explaining feedback in the agent chat without replying on GitHub is strictly forbidden.
 > 10. **Reset PR Review Labels When Addressed**: Whenever comments or requested changes are fixed, **remove all existing `pr-review-*` labels** (`pr-review-approved`, `pr-review-changes-requested`, `pr-review-rejected`) and **attach `pr-review-pending` (grey `#ededed`)**.
+> 11. **Mandatory 1.10h Recurring Recheck Cron**: Immediately after creating a PR, **always configure a recurring cron schedule every 1.10h (70 minutes)** to recheck the PR for new review comments.
+>    - If new comments exist: analyze carefully, address valid comments, reply to invalid comments, and reset labels.
+>    - If **no new comments were found after 1.10h**: push an empty commit with title `"triggering Bot reviewer"` (`git commit --allow-empty -m "triggering Bot reviewer" && git push`) to trigger the automated bot reviewer.
 
 ---
 
@@ -90,65 +96,74 @@ Prefer short bullet points and simple language. Do not invent tests, requirement
 ## 🎯 End-to-End Execution Flow
 
 ```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                        PR LIFECYCLE EXECUTION                          │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                        │
-│   [ Local Pre-flight ] ──► [ Push Branch ] ──► [ gh pr create --draft ]│
-│          ▲                                             │               │
-│          │                                             ▼               │
-│   [ Fix CI Locally ] ◄── [ CI Failed ] ◄────── [ Watch CI Checks ]     │
-│                                                        │               │
-│                                                   CI Green ✅           │
-│                                                        ▼               │
-│   [ Reply to Threads ] ◄── [ Fix Code ] ◄── [ Bot Reviews PR ]         │
-│            │                                   (Autodiscovery)         │
-│            ▼                                           ▲               │
-│   [ Reset Labels to ] ──► [ Push Updates ] ────────────┘               │
-│   pr-review-pending                                                    │
-│                                                                        │
-└────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 PR LIFECYCLE EXECUTION                                 │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                        │
+│   [ Local Pre-flight ] ──► [ Push Branch ] ──► [ gh pr create --draft ]                │
+│          ▲                                             │                               │
+│          │                                             ▼                               │
+│   [ Fix CI Locally ] ◄── [ CI Failed ] ◄────── [ Watch CI Checks ]                     │
+│                                                        │                               │
+│                                                   CI Green ✅                           │
+│                                                        ▼                               │
+│                                            [ Schedule 1.10h Cron ]                     │
+│                                                        │                               │
+│                            ┌───────────────────────────┴───────────────────────────┐   │
+│                            ▼                                                       ▼   │
+│                 [ New Comments Found ]                                   [ No New Comments ]
+│                            │                                                       │   │
+│            ┌───────────────┴───────────────┐                                       │   │
+│            ▼                               ▼                                       ▼   │
+│     [ Valid Comment ]              [ Invalid Comment ]                    [ Push Empty Commit ]
+│     • Fix in code                  • Explain why                           git commit --allow-empty
+│     • Test & commit                  technically                             -m "triggering Bot
+│     • Reply with commit SHA        • Reply directly                          reviewer"
+│     • Reset labels to pending        to thread                             git push
+│     • git push updates                             │                               │   │
+│            │                                       │                               │   │
+│            └───────────────────────┬───────────────┘                               │   │
+│                                    ▼                                               │   │
+│                         [ Bot Review Polling ] ◄───────────────────────────────────┘   │
+│                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ```mermaid
 flowchart TD
     A[Start: New PR or Existing PR] --> B{Action Type}
     
-    B -->|Create New PR| C1[1. Local Quality Gate
-Run tests & linters]
-    C1 --> C2[2. Push Branch to Origin
-git push -u origin branch-name]
-    C2 --> C3[3. Create GitHub Draft PR
-gh pr create --draft --title ... --body ...]
-    C3 --> D[4. CI Check Gate
-gh pr checks pr-number --watch]
+    B -->|Create New PR| C1[1. Local Quality Gate: tests & linters]
+    C1 --> C2[2. Push Branch to Origin]
+    C2 --> C3[3. Create GitHub Draft PR: gh pr create --draft]
+    C3 --> D[4. CI Check Gate: gh pr checks --watch]
     
-    B -->|Inspect / Fix Existing PR| E1[1. Resolve Scope & Identity
-gh pr view & gh pr diff]
-    E1 --> E2[2. Check Worktree State
-Dirty -> Isolated Sibling Worktree]
+    B -->|Inspect / Fix Existing PR| E1[1. Resolve Scope & Identity: gh pr view & gh pr diff]
+    E1 --> E2[2. Check Worktree State: Dirty -> Sibling Worktree]
     E2 --> D
     
-    D -->|CI Fails ❌| F1[Diagnose Logs: gh run view --log-failed
-Apply focused fix -> Push]
+    D -->|CI Fails ❌| F1[Diagnose Logs: gh run view --log-failed -> Fix & Push]
     F1 --> D
     
-    D -->|CI Passes ✅| G[5. Bot PR Review
-Auto-poller picks up PR within 60s]
-    G --> H[6. Fetch & Triage Comments
-gh pr view --comments]
+    D -->|CI Passes ✅| S1[5. Schedule Recurring 1.10h Cron]
+    S1 --> G{Check for Comments every 1.10h}
     
-    H -->|Feedback Addressed| I1[Address Issues in Code
-Verify with unit tests]
-    I1 --> I2[Reply directly to comment threads
-NO top-level big comments]
-    I2 --> I3[Reset Labels:
+    G -->|New Comments Found| H[Triage Comments]
+    H -->|Valid Comment| I1[Fix in Code & Run Tests
+Push Commit
+Reply directly with commit SHA]
+    H -->|Invalid Comment| I2[Reply directly to thread
+with technical explanation]
+    I1 --> I3[Reset Labels:
 Remove pr-review-*
 Add pr-review-pending grey]
-    I3 --> I4[git push updates]
-    I4 --> D
+    I2 --> I3
+    I3 --> D
     
-    H -->|Approved / Green| J[PR Ready for Final Review / Merge 🎉]
+    G -->|No New Comments after 1.10h| T1[Push Empty Commit:
+git commit --allow-empty -m 'triggering Bot reviewer'
+git push]
+    T1 --> D
 ```
 
 ---
@@ -219,6 +234,20 @@ PR_NUMBER=$(gh pr view --json number -q .number)
 echo "Created Draft PR #${PR_NUMBER}"
 ```
 
+#### 4. Schedule Recurring 1.10h PR Recheck Cron (MANDATORY)
+Immediately after creating a PR, always configure a recurring cron schedule every 1.10h (70 minutes) using the `schedule` tool (or crontab) to monitor the PR for review comments:
+
+```json
+{
+  "CronExpression": "10 */1 * * *",
+  "IsDaemon": true,
+  "Prompt": "Recheck PR #<PR_NUMBER> in <owner>/<repo> for new review comments. Fetch unreplied comments via gh api repos/<owner>/<repo>/pulls/<PR_NUMBER>/comments. Analyze each comment: if valid, implement fix, test locally, push commit, and reply to thread with commit SHA. If invalid, reply directly to thread with technical explanation. If NO new comments were found after 1.10h, push an empty commit titled 'triggering Bot reviewer' (`git commit --allow-empty -m \"triggering Bot reviewer\" && git push`) to trigger the reviewer bot.",
+  "toolAction": "Scheduling recurring PR review recheck cron",
+  "toolSummary": "Recurring PR recheck cron (every 1.10h)"
+}
+```
+*(Or configure an initial 70-minute timer with `DurationSeconds=4200`)*.
+
 ---
 
 ### Phase B: Inspecting & Entering an Existing PR
@@ -279,30 +308,54 @@ The Cloud Composer environment runs an Airflow polling DAG (**`pr-reviewer-disco
 - When new commits are detected on an open PR, or when the label `pr-review-pending` is attached, the system automatically triggers an evaluation run within 60 seconds.
 - *Note on manual trigger*: Running `gcloud composer environments run ... dags trigger` requires specific IAM admin privileges (`composer.environments.executeAirflowCommand`). Pushing new commits or resetting the label to `pr-review-pending` is the standard, reliable method to initiate a review.
 
-#### 2. Fetch Review Comments
+#### 2. Fetch Review Comments (Inline Diff & Discussion Comments)
+Always fetch BOTH inline review diff comments (containing comment IDs, file paths, and line numbers) and PR discussion comments:
+
 ```bash
-# Fetch comments and reviews
-gh pr view "$PR_NUMBER" --comments
+# 1. Fetch inline review comments with IDs, paths, lines, and reply parent
+gh api repos/{owner}/{repo}/pulls/{pr_number}/comments \
+  --jq '.[] | {id: .id, user: .user.login, path: .path, line: .line, in_reply_to_id: .in_reply_to_id, body: .body}'
+
+# 2. Extract unresolved review comment threads (threads without replies):
+gh api repos/{owner}/{repo}/pulls/{pr_number}/comments | jq '
+  [.[] | {id: .id, user: .user.login, path: .path, line: .line, in_reply_to_id: .in_reply_to_id, body: .body}] as $all |
+  [$all[] | select(.in_reply_to_id == null)] |
+  map(
+    .id as $root_id |
+    . + {replies: [$all[] | select(.in_reply_to_id == $root_id)]}
+  ) |
+  map(select(.replies | length == 0))
+'
+
+# 3. Fetch top-level PR conversation comments and reviews
 gh pr view "$PR_NUMBER" --json comments,reviews,latestReviews
 ```
 
-#### 3. Triage & Classify Comments
-Classify each comment:
-- **Valid Issue**: Implement the fix and verify with tests.
-- **Duplicate / Already Addressed**: Confirm against latest HEAD.
-- **Out of Scope / Incorrect**: Prepare a brief technical justification.
+#### 3. Triage & Classify Comments (Valid vs Invalid)
+Carefully analyze every single unreplied comment:
+- **Valid Issue**: Real defect, regression, convention violation, unhandled edge case, missing test, or typing error.
+  - Action: Fix in code, verify locally with tests/linters, commit, push, and reply directly on the comment thread referencing the commit SHA.
+- **Invalid / Out of Scope Issue**: Misunderstanding of requirements, false positive, suggestion that violates design invariants, or requirement already satisfied elsewhere.
+  - Action: **DO NOT IGNORE**. Prepare a clear, professional technical justification and reply directly to the comment thread on GitHub.
 
-#### 4. Addressing Feedback & Replying to Comments (NO BIG PR COMMENTS)
+#### 4. Mandatory Direct Replies to Comment Threads (NO BIG PR COMMENTS)
 
 > [!IMPORTANT]
-> **No Top-Level PR Discussion Wall-of-Text**:
+> **No Top-Level PR Discussion Wall-of-Text & Zero Ignored Comments**:
 > - **DO NOT** run `gh pr comment "$PR_NUMBER" --body "..."` to post a giant summary of all resolved items at the end of the PR.
-> - **DO** reply directly to each individual comment thread that was addressed:
-> ```bash
-> # Reply directly to an inline review thread using GitHub API:
-> gh api repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies \
->   -f body="Fixed in commit $(git rev-parse --short HEAD): <concise explanation of what changed>."
-> ```
+> - **DO** reply directly to each individual comment thread using the GitHub API:
+
+##### A. Replying to Valid Comments (After Code Fix & Push):
+```bash
+gh api repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies \
+  -f body="Fixed in commit $(git rev-parse --short HEAD): <concise explanation of what changed>."
+```
+
+##### B. Replying to Invalid or Out-of-Scope Comments:
+```bash
+gh api repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies \
+  -f body="<Clear technical justification why this suggestion is invalid, already handled elsewhere, or why the current behavior is intentional>."
+```
 
 #### 5. Reset Review Labels (MANDATORY)
 Whenever review feedback is addressed, strip old review labels and attach `pr-review-pending`:
@@ -334,6 +387,16 @@ gh pr checks "$PR_NUMBER" --watch
 # The background bot discovery will pick up the new commit / pending label automatically within 60s.
 ```
 
+#### 7. Triggering Bot Reviewer If No New Comments Found (1.10h Timeout)
+When the 1.10h cron rechecks the PR and **NO new comments were found**:
+Push an empty commit with the exact commit message `"triggering Bot reviewer"`:
+```bash
+git commit --allow-empty -m "triggering Bot reviewer"
+git push
+```
+> [!NOTE]
+> Pushing this empty commit updates the PR's `head_sha` on GitHub without changing any code, which triggers the Airflow polling DAG (`pr-reviewer-discovery`) and GitHub Actions pipelines to run a fresh review pass.
+
 ---
 
 ## 🚫 Anti-Patterns & Prohibitions
@@ -344,6 +407,9 @@ gh pr checks "$PR_NUMBER" --watch
 | **Pushing before running local tests** | Wastes CI compute and delays feedback. | Always run `pytest` / `npm test` locally first. |
 | **Ignoring red / failing CI checks** | Merging broken CI breaks the main build. | Never proceed with failing CI. Fix and re-verify. |
 | **Leaving stale `pr-review-*` labels** | Misleads team and bots about review state after fixes are pushed. | Remove `pr-review-*` labels and add `pr-review-pending` (grey). |
+| **Leaving invalid comments unanswered on the thread** | Reviewers and bots cannot tell if feedback was noticed or rejected. | **Forbidden**. Reply directly to the thread with clear technical justification. |
+| **Finishing task after git push without replying** | Bypasses thread resolution and leaves reviewers without feedback status. | **Forbidden**. Replying to all threads is a mandatory step before task completion. |
+| **Forgetting to schedule 1.10h cron after PR creation** | Leaves the PR unmonitored and stalls automated reviewer bot cycles. | Always schedule recurring 1.10h cron after `gh pr create`. |
 | **Force-pushing without permission** | Overwrites remote commits and review history. | Stop and obtain explicit user permission before any force-push. |
 | **Wrong PR title prefix (`feat:`, `chore:`)** | Fails automated semantic PR title validation. | Use strictly `feature:`, `fix:`, or `documentation:`. |
 | **Adding agent attribution / co-author trailers** | Pollutes git history and breaks attribution policies. | Never add `Co-authored-by:` or agent names to commits or PRs. |
