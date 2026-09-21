@@ -49,7 +49,7 @@ Automates organization-wide pull request discovery and code review execution on 
 │    • Fetch unified diff (gh pr diff) & existing review comments                  │
 │    • Macro Review: Architecture, blast radius across repo via ripgrep (rg)       │
 │    • Micro Review: Diff quality, null safety, clean code rules, edge cases       │
-│    • Filter duplicates: Enrich incomplete threads, suppress repeated feedback    │
+│    • Filter duplicates: Validate comments (suppress valid, flag invalid findings)│
 │    • Structure findings: Exact Diff + Technical Explanation + Ready-to-Post      │
 └────────────────────────────────────────┬─────────────────────────────────────────┘
                                          │

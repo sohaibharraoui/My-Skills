@@ -141,6 +141,8 @@ def build_canonical_row(
         "agent_id": winning_poc.get("agent_id", "") if winning_poc else "",
         "total_poc_attempts": total_attempts,
         "poc_length_bytes": winning_poc.get("poc_length") if winning_poc else None,
+        "vul_exit_code": winning_poc.get("vul_exit_code") if winning_poc else None,
+        "fix_exit_code": winning_poc.get("fix_exit_code") if winning_poc else None,
         "server_poc_path": server_path or "",
         "poc_created_at": winning_poc.get("created_at", "") if winning_poc else "",
         "scan_url": scan_url,

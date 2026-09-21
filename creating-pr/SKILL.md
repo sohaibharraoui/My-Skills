@@ -1,11 +1,11 @@
 ---
 name: creating-pr
-description: Mandatory Pull Request lifecycle skill. MUST BE USED for ANY action on a PR: creating a new PR, inspecting PR comments, addressing review feedback, pushing commits to a PR branch, replying directly to individual comment threads (both valid and invalid), scheduling recurring 1.10h comment rechecks, diagnosing CI failures, resetting review labels, or modifying PR title/description.
+description: Mandatory Pull Request lifecycle skill. MUST BE USED for ANY action on a PR: creating a new PR, inspecting PR comments, addressing review feedback, pushing commits to a PR branch, replying directly to individual comment threads (both valid and invalid), scheduling recurring 1.10h comment rechecks, diagnosing CI failures, or modifying PR title/description.
 ---
 
 # Pull Request Lifecycle Runbook (`creating-pr`)
 
-Comprehensive standard operating procedure for the entire GitHub Pull Request lifecycle: safe git/CLI authoring boundaries, opening PRs, scheduling recurring 1.10h comment rechecks, inspecting existing PRs, diagnosing CI checks, addressing review comments, replying directly to specific comment threads (both valid and invalid), pushing empty commits to trigger bot review, and managing review state labels.
+Comprehensive standard operating procedure for the entire GitHub Pull Request lifecycle: safe git/CLI authoring boundaries, opening PRs, scheduling recurring 1.10h comment rechecks, inspecting existing PRs, diagnosing CI checks, addressing review comments, replying directly to specific comment threads (both valid and invalid), and pushing empty commits to trigger bot review.
 
 ---
 
@@ -18,20 +18,21 @@ Comprehensive standard operating procedure for the entire GitHub Pull Request li
 > 4. **Draft PR by Default**: When explicitly requested to open a PR, always create it as **draft** (`gh pr create --draft`) unless the user explicitly requests a ready-for-review pull request.
 > 5. **Safety Invariants**:
 >    - **Never Merge**: Never merge, approve, auto-merge, enable auto-merge, or ask GitHub to merge a PR.
+>    - **Never Touch PR Tags or Labels**: Never add, remove, mutate, or update tags or labels on Pull Requests (e.g. `pr-review-*`, `pr-complexity-*`, status labels, or any GitHub labels via `gh pr edit` or the GitHub API). Tags and labels on PRs belong entirely to human reviewers and automated repository bots/webhooks.
 >    - **No Force-Pushes**: Never push with `--force`, `-f`, or `--force-with-lease`. If force-pushing or rewriting history is required, stop and obtain explicit user permission first.
 >    - **Preserve User State**: Never delete a branch, reset or clean away user changes, or alter repository settings without explicit user permission.
 >    - **No Disposable Worktrees**: Do not create PR worktrees under `/tmp`. Prefer a visible sibling directory beside the repository, such as `../<repo-name>-worktrees/pr-<number>`.
 > 6. **Strict Attribution Bans**: Never add collaborators, co-authors, attribution trailers, or agent attribution to commit messages or PR titles. Do not add `Co-authored-by:`, `Co-Authored-By:`, `Generated-by:`, or `Reviewed-by:` trailers. Never include agent, model, or host identities in branch names, commit titles, or PR titles.
-> 7. **Automatic Bot Review Polling**: The bot review system (`pr-reviewer-discovery`) polls open PRs every minute. Pushing commits or setting `pr-review-pending` automatically schedules an evaluation.
+> 7. **Automatic Bot Review Polling**: The bot review system (`pr-reviewer-discovery`) polls open PRs every minute. Pushing commits automatically schedules an evaluation.
 > 8. **No Big Summary Comments on the PR**: Never dump a massive review summary comment or wall of text at the bottom of the PR discussion tab (`gh pr comment --body ...`).
 > 9. **Mandatory Replies to ALL Comment Threads (Valid & Invalid)**: Never finish a task or exit after `git push` without replying directly to every single unreplied comment thread:
 >    - **Valid Comments**: Implement code fix, test locally, commit, push, and reply to the thread with the commit SHA and explanation (`Fixed in commit <sha>: <concise description>`).
 >    - **Invalid Comments**: Reply directly to the thread with a clear, respectful technical justification explaining why the comment is invalid, out of scope, or why the current implementation is intended.
 >    - **Zero Ignored Comments**: Every comment thread MUST receive a reply. Explaining feedback in the agent chat without replying on GitHub is strictly forbidden.
-> 10. **Reset PR Review Labels When Addressed**: Whenever comments or requested changes are fixed, **remove all existing `pr-review-*` labels** (`pr-review-approved`, `pr-review-changes-requested`, `pr-review-rejected`) and **attach `pr-review-pending` (grey `#ededed`)**.
-> 11. **Mandatory 1.10h Recurring Recheck Cron**: Immediately after creating a PR, **always configure a recurring cron schedule every 1.10h (70 minutes)** to recheck the PR for new review comments.
->    - If new comments exist: analyze carefully, address valid comments, reply to invalid comments, and reset labels.
+> 10. **Mandatory 1.10h Recurring Recheck Cron**: Immediately after creating a PR, **always configure a recurring cron schedule every 1.10h (70 minutes)** to recheck the PR for new review comments.
+>    - If new comments exist: analyze carefully, address valid comments, and reply to invalid comments.
 >    - If **no new comments were found after 1.10h**: push an empty commit with title `"triggering Bot reviewer"` (`git commit --allow-empty -m "triggering Bot reviewer" && git push`) to trigger the automated bot reviewer.
+> 11. **Strict Prohibition on PR Tag and Label Modification**: Never add, remove, mutate, or update tags or labels on Pull Requests under any circumstances. Modifying PR labels or tags (such as stripping approval labels, resetting review state labels, or attaching arbitrary tags) disrupts human reviewer approvals and repository workflows. Agents must strictly leave PR tags and labels untouched.
 
 ---
 
@@ -119,8 +120,7 @@ Prefer short bullet points and simple language. Do not invent tests, requirement
 │     • Fix in code                  • Explain why                           git commit --allow-empty
 │     • Test & commit                  technically                             -m "triggering Bot
 │     • Reply with commit SHA        • Reply directly                          reviewer"
-│     • Reset labels to pending        to thread                             git push
-│     • git push updates                             │                               │   │
+│     • git push updates               to thread                             git push
 │            │                                       │                               │   │
 │            └───────────────────────┬───────────────┘                               │   │
 │                                    ▼                                               │   │
@@ -154,11 +154,8 @@ Push Commit
 Reply directly with commit SHA]
     H -->|Invalid Comment| I2[Reply directly to thread
 with technical explanation]
-    I1 --> I3[Reset Labels:
-Remove pr-review-*
-Add pr-review-pending grey]
-    I2 --> I3
-    I3 --> D
+    I1 --> D
+    I2 --> D
     
     G -->|No New Comments after 1.10h| T1[Push Empty Commit:
 git commit --allow-empty -m 'triggering Bot reviewer'
@@ -301,12 +298,12 @@ gh run view --log-failed
 
 ---
 
-### Phase D: Review Bot Polling, Addressing Comments & Label Management
+### Phase D: Review Bot Polling & Addressing Comments
 
 #### 1. How the Bot Reviews PRs (Automated Discovery)
 The Cloud Composer environment runs an Airflow polling DAG (**`pr-reviewer-discovery`**) every minute.
-- When new commits are detected on an open PR, or when the label `pr-review-pending` is attached, the system automatically triggers an evaluation run within 60 seconds.
-- *Note on manual trigger*: Running `gcloud composer environments run ... dags trigger` requires specific IAM admin privileges (`composer.environments.executeAirflowCommand`). Pushing new commits or resetting the label to `pr-review-pending` is the standard, reliable method to initiate a review.
+- When new commits are detected on an open PR, the system automatically triggers an evaluation run within 60 seconds.
+- *Note on manual trigger*: Running `gcloud composer environments run ... dags trigger` requires specific IAM admin privileges (`composer.environments.executeAirflowCommand`). Pushing new commits is the standard, reliable method to initiate a review.
 
 #### 2. Fetch Review Comments (Inline Diff & Discussion Comments)
 Always fetch BOTH inline review diff comments (containing comment IDs, file paths, and line numbers) and PR discussion comments:
@@ -357,37 +354,17 @@ gh api repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies \
   -f body="<Clear technical justification why this suggestion is invalid, already handled elsewhere, or why the current behavior is intentional>."
 ```
 
-#### 5. Reset Review Labels (MANDATORY)
-Whenever review feedback is addressed, strip old review labels and attach `pr-review-pending`:
-```bash
-# 1. Fetch current review labels on the PR
-EXISTING_REVIEW_LABELS=$(gh pr view "$PR_NUMBER" --json labels -q '.labels[].name' | grep '^pr-review-' || true)
-
-# 2. Remove all existing pr-review-* labels
-for lbl in $EXISTING_REVIEW_LABELS; do
-  echo "Removing label: $lbl"
-  gh pr edit "$PR_NUMBER" --remove-label "$lbl"
-done
-
-# 3. Ensure pr-review-pending exists with grey color (#ededed)
-gh label create pr-review-pending --color "ededed" --description "PR review is pending evaluation" --force 2>/dev/null || true
-
-# 4. Attach pr-review-pending label
-gh pr edit "$PR_NUMBER" --add-label "pr-review-pending"
-echo "✓ Set label: pr-review-pending (grey)"
-```
-
-#### 6. Push Updates & Watch CI
+#### 5. Push Updates & Watch CI
 ```bash
 # Push commits (never force-push)
 git push
 
 # Ensure CI passes on updated HEAD
 gh pr checks "$PR_NUMBER" --watch
-# The background bot discovery will pick up the new commit / pending label automatically within 60s.
+# The background bot discovery will pick up the new commit automatically within 60s.
 ```
 
-#### 7. Triggering Bot Reviewer If No New Comments Found (1.10h Timeout)
+#### 6. Triggering Bot Reviewer If No New Comments Found (1.10h Timeout)
 When the 1.10h cron rechecks the PR and **NO new comments were found**:
 Push an empty commit with the exact commit message `"triggering Bot reviewer"`:
 ```bash
@@ -406,7 +383,6 @@ git push
 | **Posting giant summary comments on the PR** | Clutters the PR conversation tab with noise. | **Forbidden**. Reply directly to specific comment threads instead. |
 | **Pushing before running local tests** | Wastes CI compute and delays feedback. | Always run `pytest` / `npm test` locally first. |
 | **Ignoring red / failing CI checks** | Merging broken CI breaks the main build. | Never proceed with failing CI. Fix and re-verify. |
-| **Leaving stale `pr-review-*` labels** | Misleads team and bots about review state after fixes are pushed. | Remove `pr-review-*` labels and add `pr-review-pending` (grey). |
 | **Leaving invalid comments unanswered on the thread** | Reviewers and bots cannot tell if feedback was noticed or rejected. | **Forbidden**. Reply directly to the thread with clear technical justification. |
 | **Finishing task after git push without replying** | Bypasses thread resolution and leaves reviewers without feedback status. | **Forbidden**. Replying to all threads is a mandatory step before task completion. |
 | **Forgetting to schedule 1.10h cron after PR creation** | Leaves the PR unmonitored and stalls automated reviewer bot cycles. | Always schedule recurring 1.10h cron after `gh pr create`. |
@@ -416,3 +392,5 @@ git push
 | **Creating ready PR instead of draft** | Triggers unintended alerts before CI validation completes. | Always pass `--draft` to `gh pr create`. |
 | **Creating worktrees in `/tmp`** | Disposable directories can lead to lost work. | Use visible sibling directories `../<repo>-worktrees/`. |
 | **Creating a PR without explicit user request** | Opens premature remote PRs and notifies collaborators. | **Strictly forbidden**. Never run `gh pr create` unless the user explicitly asks for a PR. |
+| **Modifying PR tags or labels (`gh pr edit`, `/labels` API)** | Strips human approvals, overrides reviewer state, and violates repository workflows. | **Strictly forbidden**. Never touch, add, delete, or update tags/labels on PRs. |
+

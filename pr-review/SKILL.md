@@ -1,6 +1,6 @@
 ---
 name: pr-review
-description: Fast, standalone, evidence-based Pull Request and code diff review. Evaluates pull requests for both the macro big-picture (architectural intent, repo-wide blast radius, caller breaks, operational safety) and micro diff quality (security vulnerabilities, logic bugs, contract breaks, test regressions, clean code conventions). Checks existing PR review threads to avoid duplicate comments and expand on unaddressed issues. Outputs exact diff snippets, detailed technical explanations, and ready-to-post PR comments matching Ostorlab senior review style. Use whenever reviewing a PR, PR URL, or local git diff.
+description: Fast, standalone, evidence-based Pull Request and code diff review. Evaluates pull requests for both the macro big-picture (architectural intent, repo-wide blast radius, caller breaks, operational safety) and micro diff quality (security vulnerabilities, logic bugs, contract breaks, test regressions, clean code conventions). Audits existing PR review comments to avoid duplicate feedback on valid issues, while flagging invalid review comments as findings with technical justifications. Outputs exact diff snippets, detailed technical explanations, and ready-to-post PR comments matching Ostorlab senior review style. Use whenever reviewing a PR, PR URL, or local git diff.
 ---
 
 # Fast Standalone PR Review (Macro & Micro)
@@ -19,10 +19,11 @@ This skill audits both the **Big Picture (Macro: architectural intent, systemic 
    * **Goal & Intent:** Does the PR actually solve the root problem described in the PR description / ticket, or does it only mask a symptom?
    * **Systemic Blast Radius:** When a public function, method signature, model field, or return type changes, use fast `rg` to audit all callers across the entire repository—not just the files in the diff.
    * **Architectural Cohesion & Simplicity:** Ensure the change aligns with existing patterns in the codebase and adheres to Occam's engineering principle (favor the simplest viable solution, avoid speculative abstractions).
-4. **Check Existing PR Comments (Zero Echoes & Value-Add):**
+4. **Audit Existing PR Comments (Zero Duplicates & Invalidate False Feedback):**
    * **Fetch Existing Threads:** When reviewing a GitHub PR, check existing review comments (`gh api repos/{owner}/{repo}/pulls/{number}/comments`).
-   * **Never Duplicate:** If an issue or convention violation has already been pointed out by another human or bot reviewer, **do NOT re-flag the exact same comment**.
-   * **Enrich & Deepen Incomplete Threads:** If an existing reviewer flagged an issue but missed a critical secondary bug, suggested an incomplete/flawed fix, or if follow-up commits failed to resolve the thread, provide additive value: reference the thread (`Building on @user's comment...`), explain what remains broken, and provide the complete fix.
+   * **Valid Comments (Do Not Re-flag):** If an existing comment is valid (accurately identifies a real bug, defect, or convention issue), **do NOT re-process, duplicate, or re-flag the same issue**. Suppress it from new findings to eliminate duplicate noise and record it in the summary as verified.
+   * **Invalid Comments (Flag as a Finding):** If an already flagged comment is invalid (factually incorrect, based on a misunderstanding, suggests an anti-pattern or bug, or is a false-positive bot hallucination), **flag a finding that the comment is invalid** (`[INVALID COMMENT]`). Clearly explain why the comment is invalid and provide a ready-to-post reply for the author/reviewer to dismiss or resolve the thread.
+   * **Unflagged Defects:** Report any genuine, previously unflagged defect as a standard finding (`[CRITICAL]`, `[MAJOR]`, `[MINOR]`, `[CONVENTION]`).
 5. **Formatters vs. Clean Code:** 
    * **Skip Mechanical Formatting:** Do not comment on whitespace, line lengths, or indentation (`ruff format` / linters enforce those).
    * **Enforce Clean Code & Conventions:** Audit architecture, encapsulation, explicit typing, boolean checks, and error handling against authoritative standards (`~/clean_code.md`).
@@ -97,7 +98,8 @@ Comments posted on GitHub PR lines must sound like a senior peer engineer, not a
 │ 3. MICRO: BOUNDED CONTEXT & CONVENTION AUDIT                           │
 │    • Inspect enclosing function/class (10–30 lines surrounding diff)   │
 │    • Trace inputs, nullability, exception paths, and callees          │
-│    • Cross-check against existing comments (filter out duplicate nits) │
+│    • Audit existing review comments: verify valid comments to avoid    │
+│      duplication, and identify invalid comments to flag               │
 │    • Check typing, encapsulation, and clean code conventions           │
 │    • Verify test assertions and public API coverage under tests/       │
 └──────────────────────────────────┬─────────────────────────────────────┘
@@ -107,7 +109,8 @@ Comments posted on GitHub PR lines must sound like a senior peer engineer, not a
 │ 4. REPORT: ARCHITECTURAL SUMMARY + 3-PART FINDINGS                     │
 │    • Architectural & Big-Picture assessment                            │
 │    • Exact PR Diff + Detailed Explanation + Ready-to-Post Comment      │
-│    • Thread Additions for unaddressed or incomplete existing reviews   │
+│    • Report unflagged defects + [INVALID COMMENT] findings for false   │
+│      or counterproductive review comments                             │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -152,7 +155,7 @@ Evaluate the diff against these core tiers:
 - **Import Rules:** Absolute imports only, import modules rather than classes directly (except `typing`), no wildcard imports.
 
 ### 5. 🧪 Test Integrity & Regressions
-- **Test Function Naming:** Follow `testWhat_whenCondition_shouldBehavior`.
+- **Test Function Naming:** Follow `testAction_condition_expectedResult` (e.g. `testCreateTicketStream_whenNameIsEmpty_raisesGraphQLError`).
 - **Meaningful Assertions:** Flag tests that assert nothing (`assert True`), assert only mocks, or mock the actual bug away.
 - **Public API Coverage:** Test behavior through public methods; never unit-test private `_` functions directly. Error-handling paths must be tested.
 
@@ -166,7 +169,7 @@ Every review MUST follow this layout:
 ## PR Review Summary
 - **Verdict:** `APPROVED` | `CHANGES REQUESTED`
 - **Scope:** `<file-count> files reviewed (<total-insertions>+ / <total-deletions>-)`
-- **Existing Threads:** `<N> existing review comments checked (0 duplicated)`
+- **Existing Threads:** `<N> existing review comments checked (<X> valid verified, <Y> flagged as invalid, 0 duplicated)`
 
 ### 🌐 Big-Picture & Architecture Assessment
 - **Goal Alignment:** `<1-2 sentences on whether the change correctly addresses the root problem>`
@@ -204,32 +207,30 @@ Every review MUST follow this layout:
 
 ---
 
-### Additions to Existing Threads (If applicable)
+#### [INVALID COMMENT] Re: @reviewer on `path/to/file.py:88` - <Short Descriptive Title>
+- **Location:** `path/to/file.py:88`
+- **Category:** `Invalid Review Comment`
 
-#### [THREAD ENRICHMENT] In response to @reviewer on `path/to/file.py:88`
-##### 1. Relevant PR Diff & Thread Context
-- **Thread:** @reviewer flagged missing timeout on `requests.get()`.
-- **Follow-up Commit Diff:**
+##### 1. Relevant PR Diff & Comment Context
+- **Reviewer Comment:** `@reviewer: "Use list comprehension here instead of a generator expression to avoid lazy evaluation."`
+- **PR Diff:**
 ```diff
-+ response = requests.get(url, timeout=30)
+@@ -88,3 +88,3 @@ def stream_large_dataset(records):
+-    return [transform(r) for r in records]
++    return (transform(r) for r in records)
 ```
 
 ##### 2. Detailed Technical Explanation
-While the commit added `timeout=30`, it leaves `requests.exceptions.RequestException` unhandled. If the remote host drops the connection or DNS resolution fails, the worker process terminates abnormally without retrying.
+The reviewer suggested replacing the generator expression with a list comprehension. However, `records` can yield millions of rows streamed directly from the database cursor. Materializing the full list in memory at once risks worker pod OOM crashes. The generator expression is intentional to stream items lazily with constant memory consumption.
 
 ##### 3. Ready-to-Post PR Comment
-> `Building on @reviewer's comment: while timeout=30 prevents hanging, connection resets and DNS errors remain unhandled and will terminate the worker. Wrap in a try/except handling requests.RequestException.`
-> ```suggestion
->     try:
->         response = requests.get(url, timeout=30)
->     except requests.RequestException as e:
->         logger.error("Failed fetching %s: %s", url, e)
->         return None
-> ```
+*(Copy and paste directly into GitHub reply on that comment thread)*
+
+> The generator expression is intentional here: `records` streams large batches from the cursor, so materializing a full list in memory risks worker pod OOM. Lazy evaluation keeps memory usage constant.
 
 ---
 
 *(If no issues are found)*:
 > **Result: APPROVED**  
-> All changed lines and external callers verified against architectural intent, security, runtime safety, test coverage, and clean-code conventions. No new defects found and existing threads addressed.
+> All changed lines and external callers verified against architectural intent, security, runtime safety, test coverage, and clean-code conventions. No new defects found and all existing threads audited.
 ```
