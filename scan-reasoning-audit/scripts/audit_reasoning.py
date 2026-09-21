@@ -13,7 +13,7 @@ def audit_scan_file(json_path: str) -> dict:
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    scan_id = data.get("id")
+    scan_id = data.get("scan_id") or data.get("id")
     risks = data.get("risks", [])
 
     all_tool_calls = []
