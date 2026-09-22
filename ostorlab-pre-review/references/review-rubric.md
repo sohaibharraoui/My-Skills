@@ -40,6 +40,9 @@ Do not review generated artifacts, minified assets, binaries, lockfiles, or vend
   - Flag tests that mock the unit or system under test itself.
   - Flag tests that mock external dependencies and only assert mock call history or configured return values without exercising real production code paths.
   - Prefer tests that verify real state transitions, outputs, and observable behavior. Respect real out-of-process boundaries (network services, third-party APIs) when determining whether mocking is appropriate.
+- **Mock Contract Symmetry**: Flag test mock helpers, fakes, or side-effect functions whose argument types or return type annotations mismatch the target method being mocked (e.g. returning `list[str]` instead of `list[pathlib.Path]`).
+- **Orchestrator Wiring Integration Tests**: Flag new base-class or orchestrator collaborator integrations (e.g. `ExecutorAgent`) that only assert mock call sequence without at least one concrete integration test verifying that real collaborators receive and process actual data produced during execution.
+- **Deep Deletion Audit**: Flag PRs deleting existing tests or helper code without verifying that remaining production fallback branches, legacy paths, or error handling retain test coverage.
 - **Severity Calibration**: Missing defensive handling, rare unhandled exceptions, and speculative edge cases are `Minor` at most; they are never `Major` or `Critical` merely because an exception could theoretically occur.
 
 ## Ostorlab invariants
@@ -48,6 +51,9 @@ Do not review generated artifacts, minified assets, binaries, lockfiles, or vend
 - **Dev / CI / Mock Settings**: Do not flag dummy credentials in `settings_dev.py`, `settings_ci.py`, `settings_test.py`, fixtures, or mocks. Do not recommend dynamic random development tokens (e.g. `secrets.token_urlsafe()`) that break local CSRF/session persistence across server restarts.
 - **Django Model Relationships**: NEVER use `hasattr()` to check for related models, ForeignKey, or OneToOne relationships. `hasattr()` swallows exceptions and triggers hidden queries. Use `getattr(model, 'relation', None)` or `try...except RelatedObjectDoesNotExist:`.
 - **MCP Tool Error Handling**: Top-level `except Exception:` blocks in Model Context Protocol (MCP) tool handlers are permitted and encouraged when logging the exception and returning a sanitized, user-friendly error string to prevent leaking internal stack traces to LLMs.
+- **Zero Generic `Exception` in Teardown/Cleanup**: Flag `except Exception:` inside `finally:`, `__del__:`, or background cleanup blocks. Require catching specific operational exceptions (e.g., `(OSError, requests.RequestException)`) so internal programming bugs and typos are not silently swallowed.
+- **Domain Exception Hierarchy Tracing**: Require tracing domain exceptions in the codebase (e.g., `RepositoryWorkspaceError` subclassing `RuntimeError`). Never assume standard library `OSError` covers domain path or workspace resolution errors.
+- **Agent Prompt & Behavioral Contract Parity**: In autonomous agent repositories, flag unqualified claims in prompts or tool docstrings (*"every file"*, *"always persists"*, *"tracks all changes"*) that contradict underlying implementation filters, size ceilings (`5MB`), excluded directories, or transport limits.
 - **Multi-Tenancy Access Logic**: In Ostorlab backend services, `has_object_level_access = False` grants organization-wide access to organization API keys; owner scoping applies only when it is `True`.
 - **Model Name Cutoffs**: Do not claim that recently added AI models or provider-qualified model IDs are invalid based on training knowledge cutoffs. Inspect the repository's model/provider configuration.
 - **Framework Reentrancy**: Do not assume a framework context manager is non-reentrant when its implementation uses safe reference-counted entry semantics.

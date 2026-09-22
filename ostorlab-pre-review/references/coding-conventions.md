@@ -61,6 +61,8 @@ Detailed language-specific conventions and code review standards extracted from 
       """Raised when user does not exist."""
   ```
 - **MCP Tool Handlers**: Top-level `except Exception:` blocks in Model Context Protocol (MCP) tool handlers are permitted and encouraged when logging the exception and returning a sanitized, user-friendly error string. This prevents unhandled tracebacks from leaking internal system state to LLM clients.
+- **Zero Generic `Exception` in Teardown/Cleanup**: Never catch generic `Exception` inside `finally:`, `__del__:`, or background cleanup blocks on the grounds of "defensive teardown". Generic catches silently mask programming bugs, typos, and syntax errors in the cleanup logic itself. Always catch specific operational exceptions (e.g., `(OSError, requests.RequestException)`).
+- **Domain Exception Hierarchy Tracing**: Trace domain exception subclasses across the codebase (e.g., `RepositoryWorkspaceError` subclassing `RuntimeError`). Never assume standard library `OSError` covers domain path or workspace resolution errors.
 - **Flat Exception Handling Without `isinstance` Branching**: Never catch multiple exception types into a tuple only to immediately branch on `isinstance(e, ...)` inside the `except` block. Use clean, distinct, flat `except TypeA:` and `except TypeB:` clauses. Python's runtime already performs exception type dispatch natively and efficiently:
   ```python
   # BAD
@@ -104,6 +106,9 @@ Detailed language-specific conventions and code review standards extracted from 
   - **Never Mock the System Under Test**: Never mock the class, function, or module that is being tested.
   - **Avoid Useless Mock Tests**: Flag tests that mock external dependencies and only assert that the mock was called with certain arguments or returned a mocked value, without exercising any real production business logic.
   - **Prefer Real Concrete Objects**: Prefer real data structures, real instances, and integration tests over mock objects whenever feasible. Mocks should strictly be reserved for out-of-process boundaries (network requests, third-party APIs, disk I/O when unavoidable).
+  - **Mock Contract Symmetry (Types & Signatures)**: In unit tests using test doubles, mocks, or fakes, ensure that every replacement callable or side-effect function (`record_*`, `fake_*`) strictly matches the parameter types and return type annotations of the real method being mocked (`sync_delta() -> list[pathlib.Path]`, NOT `list[str]`).
+  - **Orchestrator Wiring Integration Tests**: For base class orchestrators wiring new subsystems or collaborators into their core execution lifecycle (e.g. `ExecutorAgent`), testing only mock call order (`["snapshot", "execute", "sync_delta"]`) is insufficient. Require at least one concrete integration test that runs the orchestrator with real collaborators producing actual artifacts to verify end-to-end data flow.
+  - **Deep Deletion Audit**: When tests or code are deleted under the claim of being "obsolete", verify that deleted tests do not remove the sole coverage for fallback branches, legacy paths, or error handling that remain active in production code.
 - **No Testing of Private Methods**: Avoid writing dedicated tests or mocking private methods (functions/methods prefixed with `_`). Test their behavior through the public contract.
 
 ### 5. Architectural Cleanliness
@@ -123,6 +128,7 @@ All autonomous agent runs across Ostorlab's security agent repositories (`agent_
 - **Dynamic Horizon Warning**: When `agent_run.usage.requests >= request_limit - 2`, enqueue an urgent wind-down warning (`HORIZON_WARNING_PROMPT`) via native message queuing to instruct the model to wrap up tool calls and formulate its final answer.
 - **Tool-Free Rescue Pass**: On `UsageLimitExceeded`, execute a tool-free rescue agent pass initialized with the accumulated context and usage (`usage=initial_usage`) to extract structured findings without infinite loops.
 - **Tenacity Retry Suppression**: Never convert `UsageLimitExceeded` into a retryable `AgentRunError`. Exhausting a tool budget is an expected boundary condition; retrying it causes exponential turn explosions.
+- **Agent Prompt & Behavioral Contract Parity**: System prompts and tool docstrings are operational specifications for LLM reasoning. When prompts contain universal or absolute claims (*"every file"*, *"always persists"*, *"tracks all changes"*), verify them against the actual code constraints (size limits like `MAX_SYNC_BYTES = 5MB`, excluded directories like `site-packages` or `__pycache__`, transport restrictions like UTF-8 GraphQL String vs raw binary). Unqualified prompt promises lead to agent hallucinations and task execution failures.
 
 ---
 

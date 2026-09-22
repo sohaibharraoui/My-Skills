@@ -32,6 +32,24 @@ This skill audits both the **Big Picture (Macro: architectural intent, systemic 
    * **Detailed Explanation:** In-depth technical reasoning detailing why this fails or violates clean code.
    * **Ready-to-Post PR Comment:** A concise, punchy 1–2 sentence inline comment written in Ostorlab senior review style, ready to copy-paste directly into GitHub with optional ```suggestion diff.
 7. **Concrete Evidence Only:** Report an issue only if you can demonstrate concrete failure modes, convention violations, or architectural code smells on changed lines. If a concern is speculative, **stay silent**.
+8. **Agent Prompt & Behavioral Contract Parity (Prompt-to-Code Parity):**
+   * In autonomous agent repositories, system instructions and tool docstrings are operational specifications that dictate LLM actions.
+   * Whenever prompt text or tool documentation changes, audit every claim with universal or absolute quantifiers (`every`, `all`, `automatically`, `always`, `never`, `any`) against the underlying backend implementation:
+     - *Size & memory caps:* (e.g. 5MB file sync limit, token truncation).
+     - *Exclusions & blacklists:* (e.g. `site-packages`, internal storage roots, `__pycache__`).
+     - *Format & transport constraints:* (e.g. GraphQL string UTF-8 constraints vs raw binary payloads).
+     - *Concurrency & lifecycle:* (e.g. background processes still writing after task completion).
+   * If a prompt promises persistence, tracking, or behavior that the backend filters, drops, or defers, flag it as a prompt-contract defect.
+9. **Zero-Tolerance Exception Scrutiny (No Exemption for Teardown or `finally:`):**
+   * Clean code rules on exception handling are non-negotiable. Never give a pass to `except Exception:` on the grounds that "it's just a cleanup / teardown / background block".
+   * Catching bare `Exception` in teardown silences typos, `AttributeError`, `TypeError`, or logic defects in the cleanup routine itself. Always require catching specific operational exceptions (e.g., `(OSError, requests.RequestException)`).
+   * Trace domain exception hierarchies: never assume standard library exceptions (e.g. `OSError`) cover domain path or workspace resolution failures (such as `RepositoryWorkspaceError` inheriting from `RuntimeError`).
+10. **Mock Contract Symmetry (Signatures & Types):**
+    * In unit tests using test doubles, mocks, or fakes, ensure that every replacement callable or side-effect function (`record_*`, `fake_*`) strictly matches the parameter types and return type annotations of the real method being mocked (`WorkspaceDeltaSync.sync_delta() -> list[pathlib.Path]`, NOT `list[str]`).
+    * Dynamic mocking (`mocker.patch.object`) hides type divergence from static type checkers; reviewers must audit signature symmetry manually.
+11. **Orchestrator Integration Rigor & Deletion Auditing:**
+    * *Wiring Integration Tests:* When an architectural base class or orchestrator (e.g. `ExecutorAgent`) wires a new subsystem or collaborator into its core execution lifecycle, verifying only mock call sequences (`["snapshot", "execute", "sync_delta"]`) is insufficient. Require at least one concrete integration test that runs the orchestrator with real collaborators producing actual artifacts to verify end-to-end data flow.
+    * *Deep Deletion Audit:* When tests or code are deleted under the justification of being "obsolete", verify that deleted tests do not remove the sole coverage for fallback branches, legacy paths, or error handling that remain active in production code.
 
 ---
 
@@ -64,6 +82,14 @@ Comments posted on GitHub PR lines must sound like a senior peer engineer, not a
   > `build_renewal_context() accepts organisation but queries PlanNg by plan_id alone without scoping to the organisation, allowing cross-tenant plan retrieval. Scope the query by adding organisation=organisation to get() so foreign plan IDs raise MissingPlanError.`
 * **Unhandled Exception / Engine Precedent:**
   > `build_renewal_context raises MissingPlanError when plan_id has no PlanNg row and it bubbles to the engine catch-all so the reminder stops sending. Catch it locally like scan_follow_with_account_journey does with MissingScanError.`
+* **Prompt vs. Implementation Boundary Contract:**
+  > `BaseExecutor and Bash prompts claim that every new or modified file in /workspace is automatically persisted to scan memory, but WorkspaceDeltaSync skips files >5MB, ignores ROOT_EXCLUDED_DIRS, and drops binary files from ScanStore. Qualify the prompt instructions with these limits so the LLM does not rely on persistence for dropped artifacts.`
+* **Clean Code / Narrow Exception in Teardown:**
+  > `Catch specific workspace-sync exceptions (such as OSError) instead of generic Exception in the finally block, otherwise internal programming errors (e.g. AttributeError, TypeError) in sync_delta are silently masked.`
+* **Mock Return Type Annotation Mismatch:**
+  > `record_sync_delta is annotated as returning list[str], but WorkspaceDeltaSync.sync_delta returns list[pathlib.Path]. Update the mock annotation to list[pathlib.Path] to match the collaborator's type contract.`
+* **Missing Integration Test for Orchestrator Wiring:**
+  > `The new tests only assert the call sequence of mocked snapshot and sync methods. Add a concrete integration test executing a task that creates a file and asserting it reaches both ScanStoreMemory and the message queue.`
 * **Customer-Facing Logic / Fallback:**
   > `minor: if last_payment_cached is None, expiry_date stays empty and the email ships a blank expiry date. Fall back to the plan end date since displaying that date is the whole point.`
 * **Type Annotations / Style Guide:**
@@ -89,6 +115,7 @@ Comments posted on GitHub PR lines must sound like a senior peer engineer, not a
 │ 2. MACRO: SYSTEMIC BLAST RADIUS & CALLER AUDIT                         │
 │    • For modified public functions/models, run fast ripgrep (rg)       │
 │      to verify whether external callers across the repo are broken     │
+│    • Check prompt contracts: verify claims against backend limits/caps │
 │    • Check data physics: N+1 queries, unbounded memory, race states    │
 │    • Check architectural simplicity vs over-engineering (Occam's razor│
 └──────────────────────────────────┬─────────────────────────────────────┘
@@ -98,9 +125,11 @@ Comments posted on GitHub PR lines must sound like a senior peer engineer, not a
 │ 3. MICRO: BOUNDED CONTEXT & CONVENTION AUDIT                           │
 │    • Inspect enclosing function/class (10–30 lines surrounding diff)   │
 │    • Trace inputs, nullability, exception paths, and callees          │
+│    • Zero-tolerance exception audit: reject broad Exception in finally │
 │    • Audit existing review comments: verify valid comments to avoid    │
 │      duplication, and identify invalid comments to flag               │
 │    • Check typing, encapsulation, and clean code conventions           │
+│    • Verify mock type signature symmetry and test deletion coverage    │
 │    • Verify test assertions and public API coverage under tests/       │
 └──────────────────────────────────┬─────────────────────────────────────┘
                                    │
@@ -123,6 +152,7 @@ Evaluate the diff against these core tiers:
 ### 1. 🌐 Big Picture & Systemic Architecture
 - **Root Cause vs. Symptom:** Does the implementation actually address the core objective, or is it a band-aid?
 - **Unupdated Callers (Blast Radius):** Public function signature or return type changes that break downstream callers across other packages.
+- **Agent Prompt & Behavioral Contract Parity:** Audit modified prompt strings and tool docstrings against implementation invariants (`MAX_SYNC_BYTES`, excluded dirs, encoding/transport constraints). Ensure the prompt does not promise persistence or behavior that the backend filters or drops.
 - **Architectural Over-Engineering:** Introducing speculative abstractions, duplicate helper layers, or unnecessary state machines when a simpler change suffices.
 - **Operational & Data Physics:** N+1 queries introduced into hot loops, unbounded in-memory list growth, non-atomic multi-step transactions, or backwards-incompatible migrations.
 
@@ -143,8 +173,10 @@ Evaluate the diff against these core tiers:
 - **Methods Without `self`:** If a method does not access instance state (`self`), move it outside the class as a private module-level function (prefixed with `_`).
 - **Encapsulation & Private Members:** Attributes and helper functions not part of the public API must be prefixed with `_`. Expose read-only state via `@property`.
 - **Explicit Boolean Checks:** Use explicit comparisons (`is True`, `is None`, `is not None`, `len(items) == 0`) rather than implicit truthiness (`if not items:`, `if items:`).
-- **Narrow Exception Handling:**
-  - Never catch generic `Exception` — catch specific exceptions (`requests.Timeout`, `KeyError`).
+- **Narrow Exception Handling & Domain Exceptions:**
+  - Never catch generic `Exception` — catch specific exceptions (`requests.Timeout`, `KeyError`, `OSError`).
+  - **No Teardown/Cleanup Exemption:** Never rationalize `except Exception:` inside `finally:`, `__del__:`, or background cleanup blocks. Generic catches silently swallow programming bugs, typos, and syntax errors.
+  - **Trace Domain Exception Hierarchies:** Audit repository-defined domain exceptions (e.g., `RepositoryWorkspaceError` subclassing `RuntimeError`). Never assume standard library `OSError` covers domain path or workspace resolution errors.
   - Keep `try` blocks minimal (ideally wrapping only the line that can raise).
   - Use flat `except` clauses (never catch a tuple only to branch on `isinstance(e, ...)` inside).
 - **Simplicity Over Complexity:**
@@ -157,6 +189,9 @@ Evaluate the diff against these core tiers:
 ### 5. 🧪 Test Integrity & Regressions
 - **Test Function Naming:** Follow `testAction_condition_expectedResult` (e.g. `testCreateTicketStream_whenNameIsEmpty_raisesGraphQLError`).
 - **Meaningful Assertions:** Flag tests that assert nothing (`assert True`), assert only mocks, or mock the actual bug away.
+- **Mock Contract Symmetry (Types & Signatures):** In unit tests using test doubles, mocks, or fakes, ensure that every replacement callable or side-effect function (`record_*`, `fake_*`) strictly matches the parameter types and return type annotations of the real method being mocked (`WorkspaceDeltaSync.sync_delta() -> list[pathlib.Path]`, NOT `list[str]`). Dynamic mocking (`mocker.patch.object`) hides type divergence from static type checkers; reviewers must audit signature symmetry manually.
+- **Orchestrator Integration Testing vs. Pure Mock Isolation:** When an architectural base class or orchestrator wires a new subsystem or collaborator into its core execution lifecycle (e.g. `ExecutorAgent`), testing only mock call order (`snapshot -> execute -> sync_delta`) is insufficient. Require at least one concrete integration test that runs the orchestrator with real collaborators producing actual artifacts to verify end-to-end data flow.
+- **Deep Deletion & Deprecation Audit:** When tests or code are deleted under the claim of being "obsolete", audit the deleted tests against the remaining codebase. Ensure deleted tests do not remove the sole coverage for fallback branches, legacy paths, or error handling that remain active in production code.
 - **Public API Coverage:** Test behavior through public methods; never unit-test private `_` functions directly. Error-handling paths must be tested.
 
 ---
