@@ -1,0 +1,4 @@
+interface:
+  display_name: "LLM Council"
+  short_description: "5-advisor panel for decisions, subagents, and fixes"
+  default_prompt: "Use $llm-council to run a council on this decision, proposed fix, or subagent output."
