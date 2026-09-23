@@ -46,10 +46,11 @@ Automates organization-wide pull request discovery and code review execution on 
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │                     2. REVIEW PIPELINE (STANDALONE pr-review)                    │
 │  For each candidate PR:                                                          │
-│    • Fetch unified diff (gh pr diff) & existing review comments                  │
+│    • Fetch diff of candidate commit (head_sha)                                  │
+│    • ALWAYS fetch existing review comments to blacklist already flagged issues  │
 │    • Macro Review: Architecture, blast radius across repo via ripgrep (rg)       │
 │    • Micro Review: Diff quality, null safety, clean code rules, edge cases       │
-│    • Filter duplicates: Validate comments (suppress valid, flag invalid findings)│
+│    • Suppress all already-flagged issues; focus 100% on spotting NEW issues      │
 │    • Structure findings: Exact Diff + Technical Explanation + Ready-to-Post      │
 └────────────────────────────────────────┬─────────────────────────────────────────┘
                                          │
@@ -73,7 +74,7 @@ In Antigravity, schedule a recurring background cron job using the `schedule` to
 {
   "CronExpression": "0 * * * *",
   "IsDaemon": true,
-  "Prompt": "Execute scheduled PR review across Ostorlab repositories: run python3 /home/sohaib-harraoui/Desktop/workspace/My-Skills/scheduled-pr-review/scripts/find_and_review_prs.py --org Ostorlab --limit 10, then perform standalone pr-review evaluations for all candidate PRs with changed head SHAs. Filter out existing review comments, verify repo-wide blast radius with rg, and report consolidated findings.",
+  "Prompt": "Execute scheduled PR review across Ostorlab repositories: run python3 /home/sohaib-harraoui/Desktop/workspace/My-Skills/scheduled-pr-review/scripts/find_and_review_prs.py --org Ostorlab --limit 10, then perform standalone pr-review evaluations for all candidate PRs with changed head SHAs. Strictly analyze the diff of the candidate commit, verify repo-wide blast radius with rg, and report consolidated findings.",
   "toolAction": "Scheduling hourly PR review cron",
   "toolSummary": "Hourly PR review cron job"
 }
@@ -174,14 +175,11 @@ For each candidate PR identified by `find_and_review_prs.py`, execute the review
   - Explicit boolean checks (`is True`, `is None`, `len(items) == 0`).
   - Flat, narrow exception handling without branching on `isinstance(e, ...)` inside `except`.
 
-### 4. Existing Comment Cross-Check (Strict Zero-Echo Rule)
-- Fetch active PR review comments:
-  ```bash
-  gh api repos/{owner}/{repo}/pulls/{number}/comments
-  ```
-- **Strict Prohibition on Echoing:** NEVER copy, summarize, or regurgitate pre-existing reviewer or bot comments as your own review findings. 
-- **Genuine Independent Scrutiny:** Review the full code diff independently for new bugs, missed edge cases, unhandled exceptions, type regressions, performance bottlenecks, or boundary conditions.
-- **Enrich Incomplete Threads:** If an existing reviewer flagged an issue but missed a secondary defect, or follow-up commits left the defect partially unresolved, reference the thread explicitly (`Building on @user's comment...`) and provide the complete fix.
+### 4. Mandatory Comment Fetching & Deduplication (Zero Already-Flagged Issues)
+- **Always Fetch Existing PR Comments:** ALWAYS query `gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate` before reviewing to build an index of all lines and issues already noted by human reviewers or bots.
+- **Never List Already Flagged Issues:** NEVER repeat, re-list, summarize, or re-flag issues that have already been commented on or flagged on the PR. Completely suppress them from review findings.
+- **Always Focus on Spotting New Issues:** Direct 100% of analytical scrutiny toward spotting BRAND-NEW issues: logic errors, missed edge cases, unhandled exceptions, type regressions, performance bottlenecks, or boundary conditions that other reviewers and automated scanners have overlooked.
+- **Commit Diff Scope:** Anchor new findings to lines changed in the candidate commit while checking callers repo-wide.
 
 ### 5. Mandatory 3-Part Finding Format
 Every finding reported MUST strictly follow the 3-part Ostorlab senior review standard:
@@ -282,7 +280,7 @@ Consolidate the results of each scheduled review sweep into a clear, high-densit
 |---|---|---|
 | **Re-reviewing identical PRs every hour** | Causes duplicate review notifications, noise for engineers, and wasted token budget. | Always verify `head_sha` against `~/.gemini/antigravity/pr_review_cache.json` before initiating review. |
 | **Spawning child subagents during review** | Violates the standalone `pr-review` principle, introduces process orchestration overhead, and risks context fragmentation. | Review candidates sequentially and directly within the active session. |
-| **Duplicating existing review comments** | Comments on issues already flagged by humans or linters irritate PR authors without adding value. | Query `gh api repos/{owner}/{repo}/pulls/{number}/comments` and verify prior threads before posting. |
+| **Listing already flagged issues** | Repeating comments that reviewers or bots have already raised creates noise and irritates authors. | Always fetch comments via `gh api .../comments --paginate`, suppress all already-flagged issues, and focus 100% on spotting NEW issues. |
 | **Reviewing lockfiles & generated files** | Lockfiles (`poetry.lock`, `package-lock.json`) and minified code contain thousands of auto-generated lines that obscure actual logic changes. | Filter out lockfiles, asset bundles, and compiled schemas from diff inspection. |
 | **Missing repo-wide blast radius** | Catching bugs in the diff alone misses un-updated external callers across the codebase when public APIs change. | Run fast `rg -n '\bfunction_name\b'` across the repository to verify all callers. |
 | **Writing verbose AI-style review comments** | Long conversational paragraphs with artificial subheadings are ignored by senior developers. | Follow Ostorlab senior review style: 1–2 punchy sentences stating condition, failure consequence, and prescriptive fix. |

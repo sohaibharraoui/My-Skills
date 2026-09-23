@@ -9,20 +9,23 @@ Perform a complete pre-review of the current local change or pull request. Treat
 
 ## Workflow
 
-1. **Safety & Scope Freezing**:
+1. **Safety, Scope Freezing & Comments Fetching**:
    - Work strictly read-only: never edit files, stage commits, push, or mutate Git/GitHub state unless explicitly authorized by the user.
    - Read the nearest `AGENTS.md` and check `git status --short`.
    - Establish the comparison base and head commit SHA (e.g. PR base or upstream merge-base). Pin the exact commit SHAs to prevent reviewing a moving or stale target.
+   - **Mandatory Existing Comments Fetching**: ALWAYS fetch all existing review comments and threads on the PR before starting the review (`gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate`). Index all lines, snippets, and issues already commented on by human reviewers or automated bots.
 2. **File Inventory & Exclusion**:
    - List every changed file.
    - Exclude generated artifacts, build outputs (`dist/`, `build/`, `.output/`, `.nuxt/`), minified files (`.min.js`, `.min.css`), map files, binaries, and package manager lockfiles (`poetry.lock`, `Cargo.lock`, `go.sum`, etc.) as defined in [`references/review-rubric.md`](references/review-rubric.md).
-3. **Deep Investigation**:
+3. **Deep Investigation & Spotting New Issues**:
+   - Focus exclusively on spotting **brand-new, unflagged issues** (unspotted logic bugs, security risks, broken callers, unhandled edge cases).
    - For each relevant changed file, inspect the full head-version content before reviewing the diff.
    - Check matching test files under `tests/` to verify test coverage and adherence to conventions.
    - For every candidate issue, trace definitions, callers, error handling, configuration, and tests until it is confirmed or disproved. Never infer that a call crashes or an edge case breaks without inspecting the callee implementation.
-4. **Rubric & Conventions Verification**:
+4. **Rubric & Conventions Verification (Zero Already-Flagged Issues)**:
    - Review code against [`references/coding-conventions.md`](references/coding-conventions.md) for strict language rules (Python top-level imports, one-line-per-symbol imports, no relative/direct class imports, explicit condition checks, exception hierarchy, avoiding useless mock tests, Django `getattr` instead of `hasattr`, MCP tool error logging; TypeScript/JavaScript strict typing, explicit null checks, named exports; Vue component conventions).
-   - Review code against [`references/review-rubric.md`](references/review-rubric.md) for defect confirmation, Ostorlab platform invariants, severity calibration, and existing comment evaluation.
+   - Review code against [`references/review-rubric.md`](references/review-rubric.md) for defect confirmation, Ostorlab platform invariants, and severity calibration.
+   - **Never List Already Flagged Issues**: Filter out and suppress any issue that has already been reported or commented on. Never repeat, summarize, or re-flag known issues in the report findings. Focus 100% on new issues.
 5. **Report & Label Recommendation**:
    - Return all verified issues at once in a single structured report.
    - Recommend the appropriate target Ostorlab PR review label based on findings.

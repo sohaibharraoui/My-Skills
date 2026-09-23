@@ -79,14 +79,9 @@ When summarizing review status, map findings to standard Ostorlab PR review labe
 - `pr-review-vulnerable`: Contains confirmed security vulnerabilities or authorization bypasses.
 - `pr-review-can-be-improved`: Contains suggestions, minor maintainability items, or convention improvements (when no critical bugs or vulnerabilities exist).
 
-## Reviewer Comment Scoring Rubric
+## Commit-Only Analysis & Comment Deduplication (Zero Already-Flagged Issues)
 
-When reviewing a PR with existing human or automated comments, evaluate review comments on a scale from `-10` to `+10`:
-
-- `-10 to -1`: Lazy, unverified questions ("Please verify if this can be null", "Ensure this works with X"), stylistic nitpicking, or false positives that waste the author's time.
-- `0`: Neutral, purely cosmetic or informational remarks.
-- `+1 to +5`: Helpful maintainability suggestions, convention improvements, or valid edge-case hardening.
-- `+6 to +10`: Discovery of confirmed logic bugs, regressions, security vulnerabilities, or data loss risks supported by code evidence.
+Reviewers must strictly analyze the changes introduced in the target commit under review (`git show <sha>` or diff from parent/base). ALWAYS fetch all existing review comments on the PR before beginning review (`gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate`). Index all lines and problems already identified by reviewers or bots. NEVER repeat, re-list, or report already flagged issues in the review output. Direct 100% of review attention toward spotting brand-new, unflagged issues and verifying caller safety across the codebase.
 
 ## Finding record
 

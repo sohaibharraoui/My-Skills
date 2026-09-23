@@ -1,6 +1,6 @@
 ---
 name: pr-review
-description: Fast, standalone, evidence-based Pull Request and code diff review. Evaluates pull requests for both the macro big-picture (architectural intent, repo-wide blast radius, caller breaks, operational safety) and micro diff quality (security vulnerabilities, logic bugs, contract breaks, test regressions, clean code conventions). Audits existing PR review comments to avoid duplicate feedback on valid issues, while flagging invalid review comments as findings with technical justifications. Outputs exact diff snippets, detailed technical explanations, and ready-to-post PR comments matching Ostorlab senior review style. Use whenever reviewing a PR, PR URL, or local git diff.
+description: Fast, standalone, evidence-based Pull Request and code diff review. Mandatory for initial PR reviews AND all follow-up review prompts, specialized angle requests (e.g. focusing on technical, logical, obvious issues, quality, security, performance, edge cases), or subsequent review turns. Always fetches existing PR review comments and discussion threads, strictly suppresses already flagged issues, and focuses 100% on spotting new, unflagged issues and refuting invalid bot comments. Evaluates changes for both the macro big-picture (architectural intent, repo-wide blast radius, caller breaks, operational safety) and micro diff quality (security vulnerabilities, logic bugs, contract breaks, test regressions, clean code conventions). Strictly enforces reporting every finding using the mandatory 3-part format: exact PR diff, detailed technical explanation, and ready-to-post PR comment matching Ostorlab senior review style. Never falls back to unstructured conversational bullets or essay sections. Use whenever reviewing a PR, PR URL, commit diff, or handling any follow-up prompt, specialized angle, deep dive, or critique on a PR.
 ---
 
 # Fast Standalone PR Review (Macro & Micro)
@@ -19,11 +19,11 @@ This skill audits both the **Big Picture (Macro: architectural intent, systemic 
    * **Goal & Intent:** Does the PR actually solve the root problem described in the PR description / ticket, or does it only mask a symptom?
    * **Systemic Blast Radius:** When a public function, method signature, model field, or return type changes, use fast `rg` to audit all callers across the entire repository—not just the files in the diff.
    * **Architectural Cohesion & Simplicity:** Ensure the change aligns with existing patterns in the codebase and adheres to Occam's engineering principle (favor the simplest viable solution, avoid speculative abstractions).
-4. **Audit Existing PR Comments (Zero Duplicates & Invalidate False Feedback):**
-   * **Fetch Existing Threads:** When reviewing a GitHub PR, check existing review comments (`gh api repos/{owner}/{repo}/pulls/{number}/comments`).
-   * **Valid Comments (Do Not Re-flag):** If an existing comment is valid (accurately identifies a real bug, defect, or convention issue), **do NOT re-process, duplicate, or re-flag the same issue**. Suppress it from new findings to eliminate duplicate noise and record it in the summary as verified.
-   * **Invalid Comments (Flag as a Finding):** If an already flagged comment is invalid (factually incorrect, based on a misunderstanding, suggests an anti-pattern or bug, or is a false-positive bot hallucination), **flag a finding that the comment is invalid** (`[INVALID COMMENT]`). Clearly explain why the comment is invalid and provide a ready-to-post reply for the author/reviewer to dismiss or resolve the thread.
-   * **Unflagged Defects:** Report any genuine, previously unflagged defect as a standard finding (`[CRITICAL]`, `[MAJOR]`, `[MINOR]`, `[CONVENTION]`).
+4. **Mandatory Existing Comments Fetching & Deduplication (Zero Re-flagging):**
+   * **Always Fetch Existing PR Comments:** ALWAYS fetch all existing review comments and threads before reviewing (`gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate`). Build an index of all lines, code hunks, and issues already flagged by humans or bots.
+   * **Never List Already Flagged Issues:** NEVER repeat, re-list, summarize, or include issues that have already been commented on or flagged on the PR. If an issue has already been raised, completely suppress it from your findings list and output report. Re-flagging known issues creates noise and wastes review bandwidth.
+   * **Always Focus on Spotting New Issues:** Direct 100% of analytical effort toward spotting brand-new, unspotted issues: logic flaws, unhandled exceptions, security vulnerabilities, broken repo-wide callers, unstated assumptions, or invalid bot comments that require explicit technical refutation.
+   * **Current Commit Diff Scope:** When reviewing a specific commit or PR update, anchor new findings to lines changed in that commit while tracing blast radius across the repository.
 5. **Formatters vs. Clean Code:** 
    * **Skip Mechanical Formatting:** Do not comment on whitespace, line lengths, or indentation (`ruff format` / linters enforce those).
    * **Enforce Clean Code & Conventions:** Audit architecture, encapsulation, explicit typing, boolean checks, and error handling against authoritative standards (`~/clean_code.md`).
@@ -50,6 +50,18 @@ This skill audits both the **Big Picture (Macro: architectural intent, systemic 
 11. **Orchestrator Integration Rigor & Deletion Auditing:**
     * *Wiring Integration Tests:* When an architectural base class or orchestrator (e.g. `ExecutorAgent`) wires a new subsystem or collaborator into its core execution lifecycle, verifying only mock call sequences (`["snapshot", "execute", "sync_delta"]`) is insufficient. Require at least one concrete integration test that runs the orchestrator with real collaborators producing actual artifacts to verify end-to-end data flow.
     * *Deep Deletion Audit:* When tests or code are deleted under the justification of being "obsolete", verify that deleted tests do not remove the sole coverage for fallback branches, legacy paths, or error handling that remain active in production code.
+12. **Mandatory Session Continuity & Follow-Up Review Contract (Zero Unstructured Findings):**
+    * **Continuous Review Lifecycle:** The PR review does NOT end after the initial review response. Any follow-up request from the user to inspect, refine, drill down, re-evaluate, or focus on specific aspects of the PR (such as *"focus on technical, logical, obvious issues, and quality"*, *"look into edge cases"*, *"check security"*, *"audit file X"*, *"what did you miss?"*) is a direct continuation of the PR review.
+    * **Strict Prohibition on Free-Form Conversational Output:** The agent MUST NEVER drop out of the `pr-review` skill or revert to generic conversational bullet points, numbered essay sections, or casual chat when presenting issues or critiques.
+    * **Enforce the Mandatory 3-Part Finding Format for Every Single Issue:** Every technical flaw, logical bug, real-world limitation, convention violation, or quality defect identified during any turn of the review MUST be reported using the canonical 3-part finding layout:
+      - `#### [SEVERITY] <Short Descriptive Title>`
+      - `- **Location:** path/to/file.ext:line`
+      - `- **Category:** <Category>`
+      - `##### 1. Relevant PR Diff`
+      - `##### 2. Detailed Technical Explanation`
+      - `##### 3. Ready-to-Post PR Comment` (with GitHub markdown suggestion block where applicable).
+    * Even when answering targeted follow-up prompts, all findings must be delivered in this exact actionable format so the user can immediately copy/paste them or review them directly on GitHub.
+
 
 ---
 
@@ -103,10 +115,12 @@ Comments posted on GitHub PR lines must sound like a senior peer engineer, not a
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│ 1. MACRO: INTENT, SCOPE & EXISTING COMMENTS                            │
+│ 1. MACRO: INTENT, EXISTING COMMENTS & COMMIT SCOPE                     │
 │    • Read PR title, description, and target branch                     │
-│    • Fetch review comments: gh api repos/.../pulls/<number>/comments   │
-│    • Extract diff (gh pr diff <number> / git diff <base>...HEAD)       │
+│    • ALWAYS fetch existing review comments:                            │
+│      gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate    │
+│    • Index already flagged lines/issues to ensure zero duplication     │
+│    • Extract diff of commit (git show <sha> / commit diff)             │
 │    • Filter out lockfiles, generated assets, minified bundles          │
 └──────────────────────────────────┬─────────────────────────────────────┘
                                    │
@@ -126,8 +140,6 @@ Comments posted on GitHub PR lines must sound like a senior peer engineer, not a
 │    • Inspect enclosing function/class (10–30 lines surrounding diff)   │
 │    • Trace inputs, nullability, exception paths, and callees          │
 │    • Zero-tolerance exception audit: reject broad Exception in finally │
-│    • Audit existing review comments: verify valid comments to avoid    │
-│      duplication, and identify invalid comments to flag               │
 │    • Check typing, encapsulation, and clean code conventions           │
 │    • Verify mock type signature symmetry and test deletion coverage    │
 │    • Verify test assertions and public API coverage under tests/       │
@@ -135,11 +147,12 @@ Comments posted on GitHub PR lines must sound like a senior peer engineer, not a
                                    │
                                    ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ 4. REPORT: ARCHITECTURAL SUMMARY + 3-PART FINDINGS                     │
+│ 4. REPORT: ARCHITECTURAL SUMMARY + BRAND-NEW 3-PART FINDINGS           │
 │    • Architectural & Big-Picture assessment                            │
+│    • Filter out ALL already flagged issues (never list them)           │
+│    • Focus exclusively on reporting brand-new, unflagged findings      │
 │    • Exact PR Diff + Detailed Explanation + Ready-to-Post Comment      │
-│    • Report unflagged defects + [INVALID COMMENT] findings for false   │
-│      or counterproductive review comments                             │
+│    • Flag invalid bot comments if they mislead the PR author           │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -203,8 +216,8 @@ Every review MUST follow this layout:
 ```markdown
 ## PR Review Summary
 - **Verdict:** `APPROVED` | `CHANGES REQUESTED`
-- **Scope:** `<file-count> files reviewed (<total-insertions>+ / <total-deletions>-)`
-- **Existing Threads:** `<N> existing review comments checked (<X> valid verified, <Y> flagged as invalid, 0 duplicated)`
+- **Scope:** `<file-count> files reviewed in commit <sha> (<total-insertions>+ / <total-deletions>-)`
+- **Existing Comments:** `<N> existing review comments fetched (already flagged issues strictly suppressed, 100% focused on new issues)`
 
 ### 🌐 Big-Picture & Architecture Assessment
 - **Goal Alignment:** `<1-2 sentences on whether the change correctly addresses the root problem>`
@@ -213,7 +226,7 @@ Every review MUST follow this layout:
 
 ---
 
-### Findings (If any)
+### New Findings (Zero Already-Flagged Issues)
 
 #### [CRITICAL | MAJOR | MINOR | CONVENTION] <Short Descriptive Title>
 - **Location:** `path/to/file.py:123`
@@ -242,30 +255,51 @@ Every review MUST follow this layout:
 
 ---
 
-#### [INVALID COMMENT] Re: @reviewer on `path/to/file.py:88` - <Short Descriptive Title>
-- **Location:** `path/to/file.py:88`
-- **Category:** `Invalid Review Comment`
-
-##### 1. Relevant PR Diff & Comment Context
-- **Reviewer Comment:** `@reviewer: "Use list comprehension here instead of a generator expression to avoid lazy evaluation."`
-- **PR Diff:**
-```diff
-@@ -88,3 +88,3 @@ def stream_large_dataset(records):
--    return [transform(r) for r in records]
-+    return (transform(r) for r in records)
+*(If no issues are found)*:
+> **Result: APPROVED**  
+> All changed lines in this commit and external callers verified against architectural intent, security, runtime safety, test coverage, and clean-code conventions. No defects found in this commit.
 ```
 
-##### 2. Detailed Technical Explanation
-The reviewer suggested replacing the generator expression with a list comprehension. However, `records` can yield millions of rows streamed directly from the database cursor. Materializing the full list in memory at once risks worker pod OOM crashes. The generator expression is intentional to stream items lazily with constant memory consumption.
+### Follow-Up Review / Specialized Angle Iteration Layout
 
-##### 3. Ready-to-Post PR Comment
-*(Copy and paste directly into GitHub reply on that comment thread)*
+When the user asks follow-up questions, requests specialized focus (e.g. *"focus on technical, logical, obvious issues, and quality"*, *"look into security"*, *"check edge cases"*, *"audit file X"*), or continues the review across multiple conversation turns:
 
-> The generator expression is intentional here: `records` streams large batches from the cursor, so materializing a full list in memory risks worker pod OOM. Lazy evaluation keeps memory usage constant.
+The agent MUST NEVER revert to free-form conversation, generic bullet points, or informal prose.
+The output MUST strictly follow this layout:
+
+```markdown
+## PR Review Follow-Up: <Focus Area / User Angle>
+- **Scope / Angle:** `<Brief 1-line statement of the focus area requested by the user>`
+- **Total New Issues Identified:** `<N>`
 
 ---
 
-*(If no issues are found)*:
-> **Result: APPROVED**  
-> All changed lines and external callers verified against architectural intent, security, runtime safety, test coverage, and clean-code conventions. No new defects found and all existing threads audited.
+### New Findings
+
+#### [CRITICAL | MAJOR | MINOR | CONVENTION] <Short Descriptive Title>
+- **Location:** `path/to/file.ext:line`
+- **Category:** `Technical / Logic` | `Domain Accuracy` | `Quality / Polish` | `Security` | `Clean Code`
+
+##### 1. Relevant PR Diff
+```diff
+<diff hunk showing the problematic code>
 ```
+
+##### 2. Detailed Technical Explanation
+<In-depth technical explanation of the flaw, why it is problematic, real-world edge cases or domain inaccuracies>
+
+##### 3. Ready-to-Post PR Comment
+*(Copy and paste directly into GitHub review comment on line X)*
+
+> <1-2 punchy senior peer sentences with exact issue, consequence, and remedy>
+> ```suggestion
+> <suggested replacement if line-local>
+> ```
+
+---
+
+*(If no issues are found in this angle/focus)*:
+> **Result: NO ADDITIONAL ISSUES IDENTIFIED**  
+> Audited <focus area / files> thoroughly against all technical, logical, and quality constraints. No new defects spotted.
+```
+
